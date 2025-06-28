@@ -1,0 +1,18 @@
+{
+  "name": "tx-retry",
+  "version": "1.0.0",
+  "main": "index.js",
+  "type": "module",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "author": "",
+  "license": "ISC",
+  "description": "",
+  "peerDependencies": {
+    "viem": ">=2.23.12"
+  },
+  "dependencies": {
+    "redis": "^5.5.6"
+  }
+}
