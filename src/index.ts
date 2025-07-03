@@ -1,9 +1,7 @@
-import { createPublicClient, createWalletClient, http, PublicClient, WalletClient } from "viem"
-import * as CHAINS from "viem/chains"
-import { privateKeyToAccount } from "viem/accounts"
+import { PublicClient, WalletClient } from "viem"
 import { CONFIG } from "./constants"
 import "./transaction"
-import { JsonRpcProvider, Wallet } from "ethers"
+import { Wallet } from "ethers"
 import transaction from "./transaction"
 
 export const sendTransaction = ({
