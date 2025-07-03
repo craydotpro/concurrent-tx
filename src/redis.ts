@@ -1,3 +1,5 @@
+import { createClient } from "redis"
+
 export let redisClient
 export const initRedis = async (config) => {
   redisClient = await createClient(config)
