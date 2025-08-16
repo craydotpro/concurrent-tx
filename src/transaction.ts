@@ -33,6 +33,7 @@ class Transaction {
     }
     return transaction
   }
+
   InitializeNonce = async (walletAddress, chainId) => {
     if (this.initializedNonces.get(walletAddress + chainId) !== undefined) return
     if (!this.redisClient && CONFIG.redis) {
@@ -148,6 +149,15 @@ class Transaction {
       }
       if (NONCE_USED_ERROR.some((errorString) => String(error).includes(errorString))) {
         // increase nonce
+        const match = String(error).match(/nonce too low: next nonce ([^]*?), tx nonce/)
+        if (match) {
+          const key = `nonce:${walletAddress}:${chainId}`
+          if (this.redisClient) {
+            await this.redisClient.SET(key, match[1])
+          } else {
+            this.memoryStorage.set(key, match[1])
+          }
+        }
         const nextNonce = await this.GetNextNonce(walletAddress, chainId)
         CONFIG.log("Retrying With Next nonce", tx.nonce, nextNonce)
         tx.nonce = nextNonce
