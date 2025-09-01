@@ -16,7 +16,6 @@ class Transaction {
   memoryStorage = new Map()
   _etherWalletTxSend = async (wallet, tx) => {
     const response = await wallet.sendTransaction(tx)
-    // console.log("response:::", response)
     let res = await response.wait()
 
     if (response.data === "0x") {
@@ -34,6 +33,7 @@ class Transaction {
     }
     return transaction
   }
+
   InitializeNonce = async (walletAddress, chainId) => {
     if (this.initializedNonces.get(walletAddress + chainId) !== undefined) return
     if (!this.redisClient && CONFIG.redis) {
@@ -65,34 +65,108 @@ class Transaction {
       return nonce
     }
   }
-  Send = async ({ wallet, walletClient, publicClient, tx, emptyTx }: { wallet?: Wallet; walletClient?: WalletClient; publicClient?: PublicClient<any, any, any>; tx: any; emptyTx?: boolean }) => {
+  GetCurrentNonce = async (walletAddress, chainId) => {
+    const key = `nonce:${walletAddress}:${chainId}`
+    if (this.redisClient) {
+      return await this.redisClient.get(key)
+    } else {
+      return this.memoryStorage.get(key)
+    }
+  }
+  DecreaseNonce = async (walletAddress, chainId) => {
+    const key = `nonce:${walletAddress}:${chainId}`
+    if (this.redisClient) {
+      return await this.redisClient.incr(key, -1)
+    } else {
+      let nonce = this.memoryStorage.get(key)
+      this.memoryStorage.set(key, nonce - 1)
+      return nonce
+    }
+  }
+  Send = async ({
+    wallet,
+    walletClient,
+    publicClient,
+    tx,
+    emptyTx,
+    chainId,
+    tryCount,
+    txHash,
+  }: {
+    wallet?: Wallet
+    walletClient?: WalletClient
+    publicClient?: PublicClient<any, any, any>
+    tx: any
+    emptyTx?: boolean
+    chainId: number
+    tryCount: number
+    txHash?: `0x${string}`
+  }) => {
+    if (tryCount > CONFIG.MAX_TRY) return Promise.reject("Transaction Failed More than Max Try")
+    let res
     try {
-      let res
       if (wallet) {
-        const response = await wallet.sendTransaction(tx)
-        res = await response.wait()
+        let transaction
+        if (txHash) {
+          transaction = await wallet.provider.getTransaction(txHash)
+        } else {
+          transaction = await wallet.sendTransaction(tx)
+          txHash = transaction.hash
+        }
+
+        res = await transaction.wait()
       } else {
-        let hash = await walletClient.sendTransaction(tx)
-        res = await publicClient.waitForTransactionReceipt({ hash })
+        txHash = await walletClient.sendTransaction(tx)
+        res = await publicClient.waitForTransactionReceipt({ hash: txHash })
       }
       if (emptyTx) {
-        CONFIG.log("Transaction dropped")
+        if (CONFIG.debug) CONFIG.log("Transaction dropped")
         return Promise.reject("Transaction dropped")
       } else {
         return res
       }
     } catch (error) {
-      CONFIG.log(error)
+      let walletAddress = wallet?.address || walletClient?.account?.address || tx.account?.address
+      if (!String(error).includes("Too Many Requests")) {
+        tryCount++
+      } else {
+        if (CONFIG.debug) CONFIG.log("######RPC Error", tx.nonce)
+      }
       await _sleep(1000)
-      if (NONCE_USED_ERROR.some((errorString) => String(error).includes(errorString))) {
-        return Promise.reject("Transaction Failed")
-      }
       if (ERRORS.some((errorString) => String(error).includes(errorString))) {
-        /** try zero tx if failed with valid reason */
-        tx = { to: tx.to, nonce: tx.nonce, value: 0 }
-        return this.Send({ wallet, walletClient, publicClient, tx, emptyTx: true })
+        const currentNonce = await this.GetCurrentNonce(walletAddress, chainId)
+        if (tx.nonce === currentNonce) {
+          /** if no other transaction in the queue */
+          if (CONFIG.debug) CONFIG.log("Tx Failed, and nonce free", tx.nonce)
+          await this.DecreaseNonce(walletAddress, chainId)
+          return Promise.reject("Transaction Failed")
+        } else {
+          if (CONFIG.debug) CONFIG.log("Tx Dropped", tx.nonce)
+          if (CONFIG.log_error) CONFIG.log(error)
+          /** try zero tx if failed with valid reason */
+          tx = { to: tx.to, nonce: tx.nonce, value: 0 }
+          return this.Send({ wallet, walletClient, publicClient, tx, emptyTx: true, chainId, tryCount, txHash })
+        }
       }
-      return this.Send({ wallet, walletClient, publicClient, tx })
+      if (NONCE_USED_ERROR.some((errorString) => String(error).includes(errorString))) {
+        // increase nonce
+        const match = String(error).match(/nonce too low: next nonce ([^]*?), tx nonce/)
+        if (match) {
+          const key = `nonce:${walletAddress}:${chainId}`
+          if (this.redisClient) {
+            await this.redisClient.SET(key, match[1])
+          } else {
+            this.memoryStorage.set(key, match[1])
+          }
+        }
+        const nextNonce = await this.GetNextNonce(walletAddress, chainId)
+        CONFIG.log("Retrying With Next nonce", tx.nonce, nextNonce)
+        tx.nonce = nextNonce
+      }
+      if (!String(error).includes("Too Many Requests")) {
+        CONFIG.log(tx.nonce, error)
+      }
+      return this.Send({ wallet, walletClient, publicClient, tx, chainId, tryCount, txHash })
     }
   }
   sendTransaction = async ({
@@ -108,13 +182,12 @@ class Transaction {
     chainId: number
     tx: any
   }) => {
-    let walletAddress = wallet?.address || walletClient?.account?.address
+    let walletAddress = wallet?.address || walletClient?.account?.address || tx.account?.address
     await this.InitializeNonce(walletAddress, chainId)
-
     if (!tx.nonce) {
       tx.nonce = tx.nonce || (await this.GetNextNonce(walletAddress, chainId))
     }
-    return this.Send({ wallet, walletClient, publicClient, tx })
+    return this.Send({ wallet, walletClient, publicClient, tx, chainId, tryCount: 0 })
   }
 }
 const transaction = new Transaction()

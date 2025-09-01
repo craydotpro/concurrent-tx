@@ -24,3 +24,8 @@ export const sendTransaction = ({
   }
   return transaction.sendTransaction({ wallet, walletClient, publicClient, chainId, tx })
 }
+process.on("uncaughtException", function (error) {
+  if (!String(error).includes("Too Many Requests")) {
+    throw error
+  }
+})
