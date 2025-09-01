@@ -126,7 +126,7 @@ class Transaction {
         return res
       }
     } catch (error) {
-      let walletAddress = wallet?.address || walletClient?.account?.address
+      let walletAddress = wallet?.address || walletClient?.account?.address || tx.account?.address
       if (!String(error).includes("Too Many Requests")) {
         tryCount++
       } else {
@@ -181,7 +181,7 @@ class Transaction {
     chainId: number
     tx: any
   }) => {
-    let walletAddress = wallet?.address || walletClient?.account?.address
+    let walletAddress = wallet?.address || walletClient?.account?.address || tx.account?.address
     await this.InitializeNonce(walletAddress, chainId)
     if (!tx.nonce) {
       tx.nonce = tx.nonce || (await this.GetNextNonce(walletAddress, chainId))
