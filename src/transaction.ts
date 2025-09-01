@@ -120,7 +120,7 @@ class Transaction {
         res = await publicClient.waitForTransactionReceipt({ hash: txHash })
       }
       if (emptyTx) {
-        CONFIG.log("Transaction dropped")
+        if (CONFIG.debug) CONFIG.log("Transaction dropped")
         return Promise.reject("Transaction dropped")
       } else {
         return res
@@ -130,18 +130,19 @@ class Transaction {
       if (!String(error).includes("Too Many Requests")) {
         tryCount++
       } else {
-        CONFIG.log("######RPC Error", tx.nonce)
+        if (CONFIG.debug) CONFIG.log("######RPC Error", tx.nonce)
       }
       await _sleep(1000)
       if (ERRORS.some((errorString) => String(error).includes(errorString))) {
         const currentNonce = await this.GetCurrentNonce(walletAddress, chainId)
         if (tx.nonce === currentNonce) {
           /** if no other transaction in the queue */
-          CONFIG.log("Tx Failed, and nonce free", tx.nonce)
+          if (CONFIG.debug) CONFIG.log("Tx Failed, and nonce free", tx.nonce)
           await this.DecreaseNonce(walletAddress, chainId)
           return Promise.reject("Transaction Failed")
         } else {
-          CONFIG.log("Tx Dropped", tx.nonce)
+          if (CONFIG.debug) CONFIG.log("Tx Dropped", tx.nonce)
+          if (CONFIG.log_error) CONFIG.log(error)
           /** try zero tx if failed with valid reason */
           tx = { to: tx.to, nonce: tx.nonce, value: 0 }
           return this.Send({ wallet, walletClient, publicClient, tx, emptyTx: true, chainId, tryCount, txHash })
