@@ -115,9 +115,17 @@ class Transaction {
         }
 
         res = await transaction.wait()
+        if (!res.status) {
+          /** if reverted */
+          return Promise.reject(res)
+        }
       } else {
         txHash = await walletClient.sendTransaction(tx)
         res = await publicClient.waitForTransactionReceipt({ hash: txHash })
+        if (res.status !== "success") {
+          /** if reverted */
+          return Promise.reject(res)
+        }
       }
       if (emptyTx) {
         if (CONFIG.debug) CONFIG.log("Transaction dropped")
