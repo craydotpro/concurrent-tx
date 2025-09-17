@@ -1,6 +1,6 @@
 {
   "name": "concurrent-tx",
-  "version": "1.0.8",
+  "version": "1.0.9",
   "main": "dist/index.js",
   "typings": "dist/index.d.ts",
   "scripts": {
@@ -14,8 +14,7 @@
   "license": "ISC",
   "description": "",
   "peerDependencies": {
-    "viem": ">=2.0.0",
-    "ethers": ">=6.0.1"
+    "viem": ">=2.0.0"
   },
   "dependencies": {
     "redis": "^5.5.6"

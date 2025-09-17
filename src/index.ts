@@ -5,14 +5,12 @@ import { Wallet } from "ethers"
 import transaction from "./transaction"
 
 export const sendTransaction = ({
-  wallet,
   walletClient,
   publicClient,
   chainId,
   options,
   tx,
 }: {
-  wallet?: Wallet
   walletClient?: WalletClient
   publicClient?: PublicClient<any, any, any>
   chainId: number
@@ -22,7 +20,7 @@ export const sendTransaction = ({
   if (options) {
     Object.assign(CONFIG, options)
   }
-  return transaction.sendTransaction({ wallet, walletClient, publicClient, chainId, tx })
+  return transaction.sendTransaction({ walletClient, publicClient, chainId, tx })
 }
 process.on("uncaughtException", function (error) {
   if (!String(error).includes("Too Many Requests")) {
