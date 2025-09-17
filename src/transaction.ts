@@ -1,4 +1,3 @@
-import { Wallet } from "ethers"
 import { CONFIG, ERRORS, NONCE_USED_ERROR } from "./constants"
 import { initRedis } from "./redis"
 import * as CHAINS from "viem/chains"
@@ -149,7 +148,7 @@ class Transaction {
       return this.Send({ ...props, tx, tryCount, txHash })
     }
   }
-  sendTransaction = async ({ walletClient, publicClient, chainId, tx }: { wallet?: Wallet; walletClient?: WalletClient; publicClient?: PublicClient<any, any, any>; chainId: number; tx: any }) => {
+  sendTransaction = async ({ walletClient, publicClient, chainId, tx }: { walletClient?: WalletClient; publicClient?: PublicClient<any, any, any>; chainId: number; tx: any }) => {
     let walletAddress = walletClient?.account?.address || tx.account?.address
     let nonce = (await this.InitializeNonce(walletAddress, chainId)) || (await this.GetNextNonce(walletAddress, chainId))
 

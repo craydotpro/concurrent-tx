@@ -1,7 +1,6 @@
 import { PublicClient, WalletClient } from "viem"
 import { CONFIG } from "./constants"
 import "./transaction"
-import { Wallet } from "ethers"
 import transaction from "./transaction"
 
 export const sendTransaction = ({
