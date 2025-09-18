@@ -14,7 +14,7 @@ export const sendTransaction = ({
   publicClient?: PublicClient<any, any, any>
   chainId: number
   options?: Record<string, any>
-  tx: Record<string, string | number>
+  tx: Record<string, string | number | BigInt>
 }) => {
   if (options) {
     Object.assign(CONFIG, options)
