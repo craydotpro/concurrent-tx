@@ -1,37 +1,17 @@
 import { CONFIG, ERRORS, NONCE_USED_ERROR } from "./constants"
 import { initRedis } from "./redis"
 import * as CHAINS from "viem/chains"
-import { createPublicClient, http, PublicClient, WalletClient } from "viem"
+import { createPublicClient, Hex, http, PublicClient, WalletClient } from "viem"
 import { _sleep } from "./utils"
 
 let chainMap = Object.keys(CHAINS).reduce((obj, key) => {
   obj[CHAINS[key].id] = key
   return obj
 }, {})
-
 class Transaction {
   initializedNonces = new Map()
   redisClient
   memoryStorage = new Map()
-  _etherWalletTxSend = async (wallet, tx) => {
-    const response = await wallet.sendTransaction(tx)
-    let res = await response.wait()
-
-    if (response.data === "0x") {
-      /** if empty transaction */
-      return Promise.reject("Transaction Failed")
-    }
-    return res
-  }
-  _viemWalletTxSend = async (wallet, tx) => {
-    let hash = await wallet.sendTransaction(tx)
-    const transaction = await wallet.waitForTransactionReceipt({ hash })
-    if (transaction.data === "0x") {
-      /** if empty transaction */
-      return Promise.reject("Transaction Failed")
-    }
-    return transaction
-  }
 
   InitializeNonce = async (walletAddress, chainId) => {
     if (this.initializedNonces.get(walletAddress + chainId) !== undefined) return
@@ -83,14 +63,22 @@ class Transaction {
       return nonce
     }
   }
-  Send = async (props: { walletClient?: WalletClient; publicClient?: PublicClient<any, any, any>; tx: any; emptyTx?: boolean; chainId: number; tryCount: number; txHash?: `0x${string}` }) => {
+  Send = async (props: { walletClient?: WalletClient; publicClient?: PublicClient<any, any, any>; tx: any; emptyTx?: boolean; chainId: number; tryCount: number; txHash?: string }) => {
     let { walletClient, publicClient, tx, emptyTx, chainId, tryCount, txHash } = props
     if (tryCount > CONFIG.MAX_TRY) return Promise.reject("Transaction Failed More than Max Try")
+    CONFIG.log(`Trying nonce: ${tx.nonce}, tryCount ${tryCount}`)
+    if (!tx.maxPriorityFeePerGas) {
+      tx.maxPriorityFeePerGas = await publicClient.estimateMaxPriorityFeePerGas()
+    } else if (tryCount !== 0) {
+      /** increase maxPriorityFeePerGas by 10% if retrying */
+      CONFIG.log("Increasing maxPriorityFeePerGas by 10%, nonce:", tx.nonce)
+      tx.maxPriorityFeePerGas = tx.maxPriorityFeePerGas + (tx.maxPriorityFeePerGas * 10) / 100
+    }
     try {
       if (!txHash) {
         txHash = await walletClient.sendTransaction(tx)
       }
-      let res = await publicClient.waitForTransactionReceipt({ hash: txHash })
+      let res = await publicClient.waitForTransactionReceipt({ hash: txHash as Hex })
       if (res.status !== "success") {
         /** if reverted */
         return Promise.reject(res)
@@ -144,6 +132,10 @@ class Transaction {
       }
       if (!String(error).includes("Too Many Requests")) {
         CONFIG.log(tx.nonce, error)
+      }
+      if (String(error).includes("Timed out while waiting for transaction")) {
+        /** most probably transaction waiting in the mempool */
+        txHash = ""
       }
       return this.Send({ ...props, tx, tryCount, txHash })
     }
