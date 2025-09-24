@@ -86,7 +86,7 @@ class Transaction {
 
     if (tryCount > CONFIG.MAX_TRY) return Promise.reject("Transaction Failed More than Max Try")
 
-    CONFIG.log(`Trying nonce: ${tx.nonce}, tryCount ${tryCount}`)
+    CONFIG.log(`Trying nonce: ${tx.nonce}, tryCount ${tryCount}. nonce Type ${typeof tx.nonce}`)
 
     if (!tx.maxPriorityFeePerGas) {
       tx.maxPriorityFeePerGas = await publicClient.estimateMaxPriorityFeePerGas()
