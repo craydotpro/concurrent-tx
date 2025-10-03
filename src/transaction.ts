@@ -3,7 +3,12 @@ import * as CHAINS from "viem/chains"
 import { CONFIG, ERRORS } from "./constants"
 import { initRedis } from "./redis"
 import { _sleep } from "./utils"
-
+const BACKOFF_TIMEOUT = {
+  1: 10_000,
+  2: 30_000,
+  3: 60_000,
+  4: 120_000,
+}
 let chainMap = Object.keys(CHAINS).reduce((obj, key) => {
   obj[CHAINS[key].id] = key
   return obj
@@ -30,7 +35,7 @@ class Transaction {
     // })
     let latestNonce = await publicClient.getTransactionCount({ address: walletAddress, blockTag: "latest" })
     let pendingNonce = await publicClient.getTransactionCount({ address: walletAddress, blockTag: "pending" })
-    if ( pendingNonce> latestNonce) { 
+    if (pendingNonce > latestNonce) {
       // todo: send empty transaction
       return { empty: true, nonce: latestNonce }
     }
@@ -80,7 +85,6 @@ class Transaction {
     }
   }
 
-
   Send = async (props: { walletClient?: WalletClient; publicClient?: PublicClient<any, any, any>; tx: any; emptyTx?: boolean; chainId: number; tryCount: number; txHash?: string }) => {
     let { walletClient, publicClient, tx, emptyTx, chainId, tryCount, txHash } = props
 
@@ -123,7 +127,7 @@ class Transaction {
         CONFIG.log(`RPC Error at nonce: ${tx.nonce}`, String(error))
       }
 
-      await _sleep(1000)
+      await _sleep(BACKOFF_TIMEOUT[tryCount] || 2000)
       if (ERRORS.some((errorString) => String(error).includes(errorString))) {
         const currentNonce = await this.GetCurrentNonce(walletAddress, chainId)
         if (tx.nonce === currentNonce) {
