@@ -92,14 +92,14 @@ class Transaction {
 
     CONFIG.log(`Trying nonce: ${tx.nonce}, tryCount ${tryCount}. nonce Type ${typeof tx.nonce}`)
 
-    if (!tx.maxPriorityFeePerGas) {
-      tx.maxPriorityFeePerGas = await publicClient.estimateMaxPriorityFeePerGas()
-    } else if (tryCount !== 0) {
-      /** increase maxPriorityFeePerGas by 15% if retrying */
-      CONFIG.log("Increasing maxPriorityFeePerGas by 15%, nonce:", tx.nonce)
-      tx.maxPriorityFeePerGas = tx.maxPriorityFeePerGas + (tx.maxPriorityFeePerGas * BigInt(15)) / BigInt(100)
-    }
     try {
+      if (!tx.maxPriorityFeePerGas) {
+        tx.maxPriorityFeePerGas = await publicClient.estimateMaxPriorityFeePerGas()
+      } else if (tryCount !== 0) {
+        /** increase maxPriorityFeePerGas by 15% if retrying */
+        CONFIG.log("Increasing maxPriorityFeePerGas by 15%, nonce:", tx.nonce)
+        tx.maxPriorityFeePerGas = tx.maxPriorityFeePerGas + (tx.maxPriorityFeePerGas * BigInt(15)) / BigInt(100)
+      }
       if (!txHash) {
         txHash = await walletClient.sendTransaction(tx)
       }
