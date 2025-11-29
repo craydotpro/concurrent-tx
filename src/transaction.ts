@@ -5,9 +5,9 @@ import { initRedis } from "./redis"
 import { _sleep } from "./utils"
 const BACKOFF_TIMEOUT = {
   1: 10_000,
-  2: 30_000,
-  3: 60_000,
-  4: 120_000,
+  2: 10_000,
+  3: 10_000,
+  4: 10_000,
 }
 let chainMap = Object.keys(CHAINS).reduce((obj, key) => {
   obj[CHAINS[key].id] = key
@@ -109,6 +109,7 @@ class Transaction {
         // timeout: 45000,
         // pollingInterval: 1500,
       })
+
       if (res.status !== "success") {
         /** if reverted */
         return Promise.reject(res)
@@ -120,6 +121,7 @@ class Transaction {
         return res
       }
     } catch (error) {
+      console.log(`concurrent-tx error: ${tx.nonce}`, error)
       let walletAddress = walletClient?.account?.address || tx.account?.address
       if (!String(error).includes("Too Many Requests")) {
         tryCount++
