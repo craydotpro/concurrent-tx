@@ -1,11 +1,17 @@
-# Transaction Module
+# concurrent-tx
 
-This npm module provides robust utilities to send blockchain transactions using either:
+A robust transaction-sending utility built on viem, designed for real-world production workloads where nonce management, retries, and dropped transaction handling are critical.
 
-- **ethers.js Wallet**
-- **viem WalletClient + PublicClient**
+This library solves the biggest pain points in Ethereum transaction automation:
 
-It manages nonce synchronization across processes using Redis (if configured) or in-memory storage. It also implements retry logic to handle nonce errors and transaction failures automatically.
+- 🚫 No more nonce collisions
+- 🔁 Automatic retry system
+- ⚡ Priority fee auto-bumping
+- 🧹 Dropped transaction detection + recovery
+- 🔄 Invalid nonce auto-correction
+- 🕒 Handles concurrent sends safely
+
+Ideal for bots, high-frequency transaction systems, scripts, and backend services.
 
 ---
 
@@ -17,34 +23,17 @@ npm i concurrent-tx
 
 ---
 
-## Example — ethers
-
-```ts
-import { sendTransaction } from "concurrent-tx"
-const pk = YOUR_PK
-const rpc = YOUR_RPC
-const wallet = new Wallet(pk, rpc)
-const result = await sendTransaction({
-  wallet,
-  chainId: 1,
-  tx: {
-    to: "0x123...",
-    data: "10000000000000000",
-    gasLimit: 21000,
-  },
-})
-console.log(result)
-```
-
 ## Example — viem
 
 ```ts
 import { createWalletClient, createPublicClient, http } from "viem"
 import { mainnet } from "viem/chains"
 import { privateKeyToAccount } from "viem/accounts"
-import { sendTransaction } from "concurrent-tx"
+import ConcurrentTx from "concurrent-tx"
 
 const pk = YOUR_PK
+
+const concurrentTx = new ConcurrentTx()
 
 const account = privateKeyToAccount(pk)
 const walletClient = createWalletClient({
@@ -57,14 +46,14 @@ const publicClient = createPublicClient({
   transport: http(),
 })
 
-const receipt = await sendTransaction({
+const receipt = await concurrentTx.Send({
   walletClient,
   publicClient,
-  chainId: 1,
   tx: {
     to: "0xabc...",
     value: BigInt("10000000000000000"),
     gas: 21000,
+    account,
   },
 })
 
@@ -73,33 +62,15 @@ console.log(receipt)
 
 ---
 
-## API Reference
-
-## `sendTransaction`
-
-```ts
-sendTransaction({
-  wallet,
-  walletClient,
-  publicClient,
-  chainId,
-  options,
-  tx,
-})
-```
-
 ### Parameters
 
-| Name           | Type                                 | Required | Description                                                  |
-| -------------- | ------------------------------------ | -------- | ------------------------------------------------------------ |
-| `wallet`       | `Wallet` (ethers.js)                 | No       | Ethers Wallet instance for signing and sending transactions. |
-| `walletClient` | `WalletClient` (viem)                | No       | Viem WalletClient for sending transactions programmatically. |
-| `publicClient` | `PublicClient<any, any, any>` (viem) | No       | Viem PublicClient for waiting on transaction receipts.       |
-| `chainId`      | `number`                             | Yes      | Chain ID of the network (e.g. `1` for Ethereum Mainnet).     |
-| `options`      | `Record<string, any>`                | No       | Additional configuration options for the module.             |
-| `tx`           | `Record<string, string \| number>`   | Yes      | Transaction data object (to, value, data, gas, etc.).        |
-
-> Either `wallet` or both `walletClient` and `publicClient` must be provided.
+| Name                                           | Type                               | Required | Description                                                  |
+| ---------------------------------------------- | ---------------------------------- | -------- | ------------------------------------------------------------ |
+| instance for signing and sending transactions. |
+| `walletClient`                                 | `WalletClient`                     | Yes      | Viem WalletClient for sending transactions programmatically. |
+| `publicClient`                                 | `PublicClient<any, any, any>`      | Yes      | Viem PublicClient for waiting on transaction receipts.       |
+| `tx`                                           | `Record<string, string \| number>` | Yes      | Transaction data object (to, value, data, gas, etc.).        |
+| `logger`                                       | `Function`                         | No       | logger Function console.debug Called on all internal logs    |
 
 ### Returns
 
@@ -107,25 +78,12 @@ sendTransaction({
 
 ---
 
-## Configuration Options
+## API Reference
 
-You can override module-level config values via the `options` argument:
+### new Transaction({ MAX_TRY? })
 
-```ts
-await sendTransaction({
-  chainId: 1,
-  tx: { ... },
-  options: {
-    redis: { host: "...", port: 6379 },
-    log: console.log,
-  },
-})
-```
-
-- **redis** — Redis connection details for distributed nonce storage.
-- **log** — Logging function for debug/error output.
-
----
+Option Type Default Description
+MAX_TRY number 4 Maximum retry attempts per tx
 
 ## Error Handling
 
@@ -133,7 +91,6 @@ This module automatically:
 
 - Retries on known nonce-related errors.
 - Sends a zero-value transaction to clear stale nonces if needed.
-- Logs errors via `CONFIG.log` if provided.
 
 If all retries fail, it rejects with:
 
